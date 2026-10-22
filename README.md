@@ -2,16 +2,18 @@
 
 本仓库是 [wudizhangzhi/HupuApp](https://github.com/wudizhangzhi/HupuApp) 的独立私有开发副本，由 [Alex-Lord](https://github.com/Alex-Lord) 用于个人使用与后续开发。
 
-**原项目由 wudizhangzhi 及其贡献者开发。** 本副本 的初始程序代码直接继承上游，不是从零重写的项目。保留完整 Git 历史、原作者署名和 [MIT LICENSE](LICENSE)，并保留原作者对 [chenjiandongx/HupuLive](https://github.com/chenjiandongx/HupuLive) 的致谢。此 Fork 不代表原作者，也不代表虎扑官方。
+**原项目由 wudizhangzhi 及其贡献者开发。** 本副本的初始程序代码直接继承上游，不是从零重写的项目。保留完整 Git 历史、原作者署名和 [MIT LICENSE](LICENSE)，并保留原作者对 [chenjiandongx/HupuLive](https://github.com/chenjiandongx/HupuLive) 的致谢。此副本 不代表原作者，也不代表虎扑官方。
 
-## 本副本 的维护范围
+为满足私有开发需求，此仓库不属于 GitHub 的公开 Fork 网络，但保留上游代码及 Git 历史。私有仓库仅所有者和受邀协作者可访问，仅持有链接无法访问。
+
+## 本副本的维护范围
 
 - 起点：上游提交 `735288e988356305de690502c93fc8607718fcaf`。
-- 当前仅补充 副本来源、开发说明与本地构建产物忽略规则，未修改上游程序功能。
+- 当前仅补充副本来源、开发说明与本地构建产物忽略规则，未修改上游程序功能。
 - 后续改动通过独立提交记录；适合上游的通用修复，会在验证后考虑向上游提交 PR。
-- 下方保留原作者 README 原文。原文中的开发经历、测试环境和待办属于上游，不表示本副本 已重新验证或完成。
+- 下方保留原作者 README 原文。原文中的开发经历、测试环境和待办属于上游，不表示本副本已重新验证或完成。
 
-## 从本副本 构建
+## 从本副本构建
 
 ```sh
 git clone https://github.com/Alex-Lord/HupuApp-dev.git
@@ -23,7 +25,7 @@ go build -o bin/hupu ./cmd
 
 已在 macOS Apple Silicon、Go 1.27.3 上构建并手动验证 NBA 新闻列表、正文和评论；比赛直播及其他平台尚未验证。需在支持光标控制的交互终端运行。
 
-本副本 尚未发布自己的二进制安装包。下方原文中的 Releases 链接属于上游，其版本不包含本副本 后续改动。
+本副本尚未发布自己的二进制安装包。下方原文中的 Releases 链接属于上游，其版本不包含本副本后续改动。
 
 开发分支、上游同步和贡献约定见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 

@@ -11,6 +11,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/wudizhangzhi/HupuApp"
 	"github.com/wudizhangzhi/HupuApp/gohupu/logger"
+	"github.com/wudizhangzhi/HupuApp/gohupu/teams"
 )
 
 type Region string
@@ -25,6 +26,13 @@ const (
 
 // 返回链接中对应的region部分, https://bbs.hupu.com/<region>
 func (r Region) String() string {
+	if strings.HasPrefix(string(r), "news:") {
+		return "502-hot"
+	}
+	key := string(r)
+	if team, ok := teams.ResolveTeam(key); ok && team != "nba" {
+		return team
+	}
 	switch r {
 	case NBA:
 		return "502-hot"
@@ -154,6 +162,30 @@ type Comment struct {
 }
 
 func GetBBSList(region Region, page int) ([]BBS, error) {
+	if page < 1 {
+		page = 1
+	}
+	if !strings.HasPrefix(string(region), "news:") {
+		return getBBSPage(region, page)
+	}
+	// One team-news page examines three NBA source pages, without duplicate posts.
+	result := []BBS{}
+	seen := map[string]bool{}
+	for n := (page-1)*3 + 1; n <= page*3; n++ {
+		posts, err := getBBSPage(region, n)
+		if err != nil {
+			return nil, err
+		}
+		for _, p := range posts {
+			if !seen[p.Uid] {
+				seen[p.Uid] = true
+				result = append(result, p)
+			}
+		}
+	}
+	return result, nil
+}
+func getBBSPage(region Region, page int) ([]BBS, error) {
 	url := "https://bbs.hupu.com/" + region.String()
 	if page > 1 {
 		url += fmt.Sprintf("-%d", page)
@@ -165,15 +197,21 @@ func GetBBSList(region Region, page int) ([]BBS, error) {
 	if err != nil {
 		return nil, err
 	}
+	if resp.StatusCode() != 200 {
+		return nil, fmt.Errorf("新闻列表 HTTP %d", resp.StatusCode())
+	}
 	// Load the HTML document
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(resp.Body()))
 	if err != nil {
-		return bbsList, nil
+		return bbsList, err
 	}
 	// Find the bbs items
 	doc.Find(region.GetBBSListSelector()).
 		Each(func(i int, s *goquery.Selection) {
-			bbsList = append(bbsList, region.GetBBS(i, s, page))
+			item := region.GetBBS(i, s, page)
+			if MatchesRegion(region, item) {
+				bbsList = append(bbsList, item)
+			}
 		})
 	return bbsList, nil
 }
@@ -236,4 +274,30 @@ func (bbs *BBS) GetComments(page int) ([]Comment, error) {
 		logger.Debug.Printf("评论: %+v\n", comment)
 	}
 	return comments, nil
+}
+
+// Team news selects explicit news titles mentioning the team from NBA news pages.
+func MatchesRegion(region Region, item BBS) bool {
+	if item.Uid == "" || strings.TrimSpace(item.Title) == "" {
+		return false
+	}
+	if strings.HasPrefix(string(region), "news:") {
+		team := strings.TrimPrefix(string(region), "news:")
+		key, ok := teams.ResolveTeam(team)
+		if !ok || key == "nba" {
+			return false
+		}
+		news := strings.Contains(item.Title, "[流言板]") || strings.Contains(item.Title, "【流言板】")
+		return news && strings.Contains(item.Title, teams.Name(key))
+	}
+	return true
+}
+func (r Region) Label() string {
+	if strings.HasPrefix(string(r), "news:") {
+		return teams.Name(strings.TrimPrefix(string(r), "news:")) + "新闻（NBA标题筛选）"
+	}
+	if key, ok := teams.ResolveTeam(string(r)); ok && key != "nba" {
+		return teams.Name(key) + "专区（含讨论）"
+	}
+	return string(r)
 }

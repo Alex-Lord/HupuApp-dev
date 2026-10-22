@@ -9,7 +9,7 @@ import (
 )
 
 const help_content = `
-Ctrl+C: 退出 Enter: 选择
+Esc: 返回列表/菜单 Ctrl+C: 返回菜单 Enter: 选择
 Ctrl+N: 下一页 Ctrl+P: 上一页
 Ctrl+Q: 切换焦点
 `
@@ -39,7 +39,7 @@ func NewBBSView(region spider.Region) *BBSViewT {
 	leftPanel := tview.NewFlex().SetDirection(tview.FlexRow)
 
 	leftListView := tview.NewList()
-	leftListView.SetHighlightFullLine(true).SetBorder(true)
+	leftListView.SetSelectedStyle(tcell.StyleDefault.Bold(true)).SetHighlightFullLine(false).SetBorder(true)
 	leftListView.SetSelectedFunc(onSelected).SetChangedFunc(onChanged)
 
 	help := tview.NewTextView().SetTextColor(tcell.ColorAqua)
@@ -63,7 +63,14 @@ func NewBBSView(region spider.Region) *BBSViewT {
 		AddItem(postPanel, 0, 2, false)
 	// 全局快捷键
 	mainFlex.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyCtrlC {
+		if event.Key() == tcell.KeyEsc {
+			if app.GetFocus() != leftListView {
+				app.SetFocus(leftListView)
+			} else {
+				app.Stop()
+			}
+			return nil
+		} else if event.Key() == tcell.KeyCtrlC {
 			app.Stop()
 		} else if event.Key() == tcell.KeyCtrlQ {
 			// logger.Debug.Printf("Focus: %+v\n", app.GetFocus())
@@ -94,6 +101,7 @@ func NewBBSView(region spider.Region) *BBSViewT {
 	postPanel.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlN {
 			BBSView.NextPageComments()
+			app.SetFocus(BBSView.PostView)
 		} else if event.Key() == tcell.KeyCtrlP {
 			BBSView.PrevPageComments()
 		}
@@ -116,8 +124,16 @@ func NewBBSView(region spider.Region) *BBSViewT {
 func onSelected(index int, mainText string, secondaryText string, shortcut rune) {
 	logger.Info.Printf("selected: %d %s %s %c", index, mainText, secondaryText, shortcut)
 	// 选择之后加载帖子内容和评论
+	if index < 0 || index >= len(BBSView.BBSList) {
+		return
+	}
 	bbs := BBSView.BBSList[index]
-	BBSView.PostContent, _ = bbs.GetDetail()
+	var err error
+	BBSView.PostContent, err = bbs.GetDetail()
+	if err != nil {
+		BBSView.PostView.SetText("读取失败：" + err.Error())
+		return
+	}
 	BBSView.CommentPage = 0 // 重置评论页数
 	BBSView.SelectedBBS = bbs
 	BBSView.RefreshPost()
@@ -137,7 +153,7 @@ func (b *BBSViewT) Display() {
 
 // 刷新左侧标题
 func (b *BBSViewT) RefreshTitle() {
-	b.BBSListView.SetTitle(string(b.Region) + "-" + fmt.Sprintf("第%d页", b.BBSPage))
+	b.BBSListView.SetTitle(b.Region.Label() + "-" + fmt.Sprintf("第%d页", b.BBSPage))
 }
 
 // 刷新评论标题
@@ -148,7 +164,14 @@ func (b *BBSViewT) RefreshCommentsTitle() {
 // 帖子下一页
 func (b *BBSViewT) NextPageBBS() {
 	b.BBSPage += 1
-	BBSView.BBSList, _ = spider.GetBBSList(b.Region, b.BBSPage)
+	var err error
+	BBSView.BBSList, err = spider.GetBBSList(b.Region, b.BBSPage)
+	if err != nil {
+		b.PostView.SetText("读取失败：" + err.Error())
+	} else if len(BBSView.BBSList) == 0 {
+		b.PostView.SetText("本页没有匹配内容。Ctrl+N 查看下一页，Esc 返回菜单。")
+	}
+
 	b.RefreshBBSList()
 	b.RefreshTitle()
 }
@@ -159,7 +182,14 @@ func (b *BBSViewT) PrevPageBBS() {
 	if b.BBSPage < 1 {
 		b.BBSPage = 1
 	}
-	BBSView.BBSList, _ = spider.GetBBSList(b.Region, b.BBSPage)
+	var err error
+	BBSView.BBSList, err = spider.GetBBSList(b.Region, b.BBSPage)
+	if err != nil {
+		b.PostView.SetText("读取失败：" + err.Error())
+	} else if len(BBSView.BBSList) == 0 {
+		b.PostView.SetText("本页没有匹配内容。Ctrl+N 查看下一页，Esc 返回菜单。")
+	}
+
 	b.RefreshBBSList()
 	b.RefreshTitle()
 }

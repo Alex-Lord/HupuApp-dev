@@ -1,7 +1,9 @@
 package api
 
 import (
+	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/wudizhangzhi/HupuApp"
@@ -27,7 +29,7 @@ func init() {
 func NewSession() *Session {
 	agent := HupuApp.ANDROID_USER_AGENT[rand.Intn(len(HupuApp.ANDROID_USER_AGENT))]
 	return &Session{
-		Client: resty.New(),
+		Client: resty.New().SetTimeout(15 * time.Second),
 		Headers: map[string]string{
 			"User-Agent": agent + " kanqiu/" + HupuApp.API_VERSION + ".13305/7214 isp/-1 network/-1",
 		},
@@ -52,6 +54,9 @@ func (s *Session) Request(method string, url string, headers map[string]string, 
 		if err != nil {
 			return nil, err
 		}
+		if resp.StatusCode() >= 400 {
+			return nil, fmt.Errorf("直播接口 HTTP %d", resp.StatusCode())
+		}
 		return resp, nil
 	case "GET":
 		resp, err = s.Client.R().
@@ -61,6 +66,9 @@ func (s *Session) Request(method string, url string, headers map[string]string, 
 		if err != nil {
 			return nil, err
 		}
+	}
+	if err == nil && resp != nil && resp.StatusCode() >= 400 {
+		return nil, fmt.Errorf("直播接口 HTTP %d", resp.StatusCode())
 	}
 	return resp, err
 }

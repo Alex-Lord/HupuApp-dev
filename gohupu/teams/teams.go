@@ -36,3 +36,47 @@ func FeedLabel(key string) string {
 	}
 	return "NBA 资讯"
 }
+
+// AppID returns the team ID used by Hupu's NBA standings and App team webview.
+// Source: https://m.hupu.com/nba/team-rank (2026-10-22).
+func AppID(value string) (string, bool) {
+	key, ok := ResolveTeam(value)
+	if !ok {
+		return "", false
+	}
+	id, ok := appIDs[key]
+	return id, ok
+}
+
+var appIDs = map[string]string{
+	"pistons":      "1901000000501290",
+	"hawks":        "1901000000501284",
+	"sixers":       "1901000000501281",
+	"raptors":      "1901000000501298",
+	"wizards":      "1901000000501283",
+	"hornets":      "1901000000501334",
+	"pacers":       "1901000000501292",
+	"knicks":       "1901000000501273",
+	"nets":         "1901000000501336",
+	"magic":        "1901000000501279",
+	"celtics":      "1901000000501263",
+	"bucks":        "1901000000501294",
+	"bulls":        "1901000000501286",
+	"heat":         "1901000000501267",
+	"cavaliers":    "1901000000501288",
+	"blazers":      "1901000000501325",
+	"clippers":     "1901000000501333",
+	"rockets":      "1901000000501311",
+	"lakers":       "1901000000501323",
+	"grizzlies":    "1901000000501313",
+	"thunder":      "1901000000501329",
+	"timberwolves": "1901000000501315",
+	"spurs":        "1901000000501317",
+	"mavericks":    "1901000000501300",
+	"jazz":         "1901000000501320",
+	"warriors":     "1901000000501331",
+	"kings":        "1901000000501321",
+	"suns":         "1901000000501327",
+	"pelicans":     "1901000000501296",
+	"nuggets":      "1901000000501301",
+}

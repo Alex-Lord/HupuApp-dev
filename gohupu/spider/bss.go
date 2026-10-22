@@ -168,23 +168,9 @@ func GetBBSList(region Region, page int) ([]BBS, error) {
 	if !strings.HasPrefix(string(region), "news:") {
 		return getBBSPage(region, page)
 	}
-	// One team-news page examines three NBA source pages, without duplicate posts.
-	result := []BBS{}
-	seen := map[string]bool{}
-	for n := (page-1)*3 + 1; n <= page*3; n++ {
-		posts, err := getBBSPage(region, n)
-		if err != nil {
-			return nil, err
-		}
-		for _, p := range posts {
-			if !seen[p.Uid] {
-				seen[p.Uid] = true
-				result = append(result, p)
-			}
-		}
-	}
-	return result, nil
+	return NewTeamNewsFeed(region).Page(page)
 }
+
 func getBBSPage(region Region, page int) ([]BBS, error) {
 	url := "https://bbs.hupu.com/" + region.String()
 	if page > 1 {
@@ -276,25 +262,13 @@ func (bbs *BBS) GetComments(page int) ([]Comment, error) {
 	return comments, nil
 }
 
-// Team news selects explicit news titles mentioning the team from NBA news pages.
+// MatchesRegion validates forum entries. Team news uses the dedicated App API.
 func MatchesRegion(region Region, item BBS) bool {
-	if item.Uid == "" || strings.TrimSpace(item.Title) == "" {
-		return false
-	}
-	if strings.HasPrefix(string(region), "news:") {
-		team := strings.TrimPrefix(string(region), "news:")
-		key, ok := teams.ResolveTeam(team)
-		if !ok || key == "nba" {
-			return false
-		}
-		news := strings.Contains(item.Title, "[流言板]") || strings.Contains(item.Title, "【流言板】")
-		return news && strings.Contains(item.Title, teams.Name(key))
-	}
-	return true
+	return item.Uid != "" && strings.TrimSpace(item.Title) != ""
 }
 func (r Region) Label() string {
 	if strings.HasPrefix(string(r), "news:") {
-		return teams.Name(strings.TrimPrefix(string(r), "news:")) + "新闻（NBA标题筛选）"
+		return teams.Name(strings.TrimPrefix(string(r), "news:")) + "新闻（App球队新闻）"
 	}
 	if key, ok := teams.ResolveTeam(string(r)); ok && key != "nba" {
 		return teams.Name(key) + "专区（含讨论）"

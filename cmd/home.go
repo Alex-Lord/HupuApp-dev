@@ -68,7 +68,7 @@ func (*HomeCmd) Run() error {
 }
 func homeItems(team string) []string {
 	name := teams.Name(team)
-	return []string{"Live · NBA 比赛文字直播", "NBA 新闻", name + "新闻 · NBA标题筛选", name + "专区 · 新闻与讨论", "设置主队（当前：" + name + "）", "退出"}
+	return []string{"Live · NBA 比赛文字直播", "NBA 新闻", name + "新闻 · App球队新闻", name + "专区 · 新闻与讨论", "设置主队（当前：" + name + "）", "退出"}
 }
 func choose(title string, items []string, notice string) (int, error) {
 	ui := tview.NewApplication()

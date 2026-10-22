@@ -6,6 +6,7 @@ import (
 	"github.com/rivo/tview"
 	"github.com/wudizhangzhi/HupuApp/gohupu/logger"
 	"github.com/wudizhangzhi/HupuApp/gohupu/spider"
+	"strings"
 )
 
 const help_content = `
@@ -18,6 +19,7 @@ var BBSView *BBSViewT
 
 type BBSViewT struct {
 	Region       spider.Region
+	newsFeed     *spider.TeamNewsFeed
 	Main         *tview.Pages
 	BBSListView  *tview.List
 	PostView     *tview.TextView
@@ -118,6 +120,9 @@ func NewBBSView(region spider.Region) *BBSViewT {
 		CommentsView: commentsView,
 		HelpContent:  help_content,
 	}
+	if strings.HasPrefix(string(region), "news:") {
+		BBSView.newsFeed = spider.NewTeamNewsFeed(region)
+	}
 	return BBSView
 }
 
@@ -162,34 +167,32 @@ func (b *BBSViewT) RefreshCommentsTitle() {
 }
 
 // 帖子下一页
-func (b *BBSViewT) NextPageBBS() {
-	b.BBSPage += 1
-	var err error
-	BBSView.BBSList, err = spider.GetBBSList(b.Region, b.BBSPage)
-	if err != nil {
-		b.PostView.SetText("读取失败：" + err.Error())
-	} else if len(BBSView.BBSList) == 0 {
-		b.PostView.SetText("本页没有匹配内容。Ctrl+N 查看下一页，Esc 返回菜单。")
-	}
-
-	b.RefreshBBSList()
-	b.RefreshTitle()
-}
-
-// 帖子上一页
+func (b *BBSViewT) NextPageBBS() { b.loadPage(b.BBSPage + 1) }
 func (b *BBSViewT) PrevPageBBS() {
-	b.BBSPage -= 1
-	if b.BBSPage < 1 {
-		b.BBSPage = 1
+	page := b.BBSPage - 1
+	if page < 1 {
+		page = 1
 	}
+	b.loadPage(page)
+}
+func (b *BBSViewT) loadPage(page int) {
+	var posts []spider.BBS
 	var err error
-	BBSView.BBSList, err = spider.GetBBSList(b.Region, b.BBSPage)
+	if b.newsFeed != nil {
+		posts, err = b.newsFeed.Page(page)
+	} else {
+		posts, err = spider.GetBBSList(b.Region, page)
+	}
 	if err != nil {
 		b.PostView.SetText("读取失败：" + err.Error())
-	} else if len(BBSView.BBSList) == 0 {
-		b.PostView.SetText("本页没有匹配内容。Ctrl+N 查看下一页，Esc 返回菜单。")
+		return
 	}
-
+	if len(posts) == 0 {
+		b.PostView.SetText("没有更多内容。Esc 返回菜单。")
+		return
+	}
+	b.BBSPage = page
+	b.BBSList = posts
 	b.RefreshBBSList()
 	b.RefreshTitle()
 }

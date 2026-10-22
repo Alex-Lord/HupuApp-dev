@@ -10,7 +10,7 @@ import (
 // wrappedList keeps selection at the item level while scrolling wrapped lines.
 type wrappedList struct {
 	*tview.Box
-	items           []string
+	items           []wrappedItem
 	current, offset int
 	width           int
 	reveal          bool
@@ -21,27 +21,47 @@ func newWrappedList() *wrappedList {
 	return &wrappedList{Box: tview.NewBox(), reveal: true}
 }
 
+type wrappedItem struct{ text, metadata string }
+type wrappedLine struct {
+	text     string
+	metadata bool
+}
+
 func (l *wrappedList) SetItems(items []string) {
+	entries := make([]wrappedItem, len(items))
+	for i, text := range items {
+		entries[i] = wrappedItem{text: text}
+	}
+	l.SetEntries(entries)
+}
+
+func (l *wrappedList) SetEntries(items []wrappedItem) {
 	l.items = items
 	l.current = 0
 	l.offset = 0
 	l.reveal = true
 }
 
-func (l *wrappedList) lines(width int) ([]string, []int) {
-	var lines []string
+func (l *wrappedList) lines(width int) ([]wrappedLine, []int) {
+	var lines []wrappedLine
 	starts := make([]int, len(l.items)+1)
 	for i, item := range l.items {
 		starts[i] = len(lines)
-		// Escape external text so titles and nicknames cannot inject tview styling.
-		for _, paragraph := range strings.Split(item, "\n") {
-			wrapped := tview.WordWrap(tview.Escape(paragraph), width)
-			if len(wrapped) == 0 {
-				wrapped = []string{""}
+		for part, text := range []string{item.text, item.metadata} {
+			if part == 1 && text == "" {
+				continue
 			}
-			lines = append(lines, wrapped...)
+			for _, paragraph := range strings.Split(text, "\n") {
+				wrapped := tview.WordWrap(tview.Escape(paragraph), width)
+				if len(wrapped) == 0 {
+					wrapped = []string{""}
+				}
+				for _, line := range wrapped {
+					lines = append(lines, wrappedLine{text: line, metadata: part == 1})
+				}
+			}
 		}
-		lines = append(lines, "")
+		lines = append(lines, wrappedLine{})
 	}
 	starts[len(l.items)] = len(lines)
 	return lines, starts
@@ -77,11 +97,15 @@ func (l *wrappedList) Draw(screen tcell.Screen) {
 	}
 	for row := 0; row < h && l.offset+row < len(lines); row++ {
 		n := l.offset + row
-		line := lines[n]
-		if len(l.items) > 0 && n >= starts[l.current] && n < starts[l.current+1] {
+		line := lines[n].text
+		color := tcell.ColorDefault
+		if lines[n].metadata {
+			color = tcell.ColorSilver
+		}
+		if !lines[n].metadata && len(l.items) > 0 && n >= starts[l.current] && n < starts[l.current+1] {
 			line = "[::b]" + line + "[::-]"
 		}
-		tview.Print(screen, line, x, y+row, w, tview.AlignLeft, tcell.ColorDefault)
+		tview.Print(screen, line, x, y+row, w, tview.AlignLeft, color)
 	}
 }
 
@@ -98,9 +122,9 @@ func (l *wrappedList) InputHandler() func(*tcell.EventKey, func(tview.Primitive)
 	return l.WrapInputHandler(func(event *tcell.EventKey, setFocus func(tview.Primitive)) {
 		_, _, _, h := l.GetInnerRect()
 		switch event.Key() {
-		case tcell.KeyUp, tcell.KeyLeft:
+		case tcell.KeyUp:
 			l.move(-1)
-		case tcell.KeyDown, tcell.KeyRight:
+		case tcell.KeyDown:
 			l.move(1)
 		case tcell.KeyHome:
 			l.current = 0

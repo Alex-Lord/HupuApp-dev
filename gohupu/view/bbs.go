@@ -11,8 +11,8 @@ import (
 
 const help_content = `
 Esc: 返回列表/菜单 Ctrl+C: 返回菜单 Enter: 选择
-Ctrl+N: 下一页 Ctrl+P: 上一页
-Ctrl+Q: 切换焦点 PgUp/PgDn: 滚动长内容
+Ctrl+N/P: 翻页 评论区 ↑/↓: 上/下一页
+→ / Ctrl+Q: 列表 → 正文 → 评论 PgUp/PgDn: 滚动长内容
 `
 
 var BBSView *BBSViewT
@@ -55,6 +55,17 @@ func NewBBSView(region spider.Region) *BBSViewT {
 	postContentView.SetBorder(true).SetTitle("Post")
 	commentsView := newWrappedList()
 	commentsView.SetBorder(true).SetTitle("Comments-第1页")
+	commentsView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+		case tcell.KeyDown:
+			BBSView.NextPageComments()
+			return nil
+		case tcell.KeyUp:
+			BBSView.PrevPageComments()
+			return nil
+		}
+		return event
+	})
 	postPanel := tview.NewFlex().SetDirection(tview.FlexRow)
 	postPanel.AddItem(postContentView, 0, 1, false)
 	postPanel.AddItem(commentsView, 0, 1, false)
@@ -74,12 +85,18 @@ func NewBBSView(region spider.Region) *BBSViewT {
 			return nil
 		} else if event.Key() == tcell.KeyCtrlC {
 			app.Stop()
-		} else if event.Key() == tcell.KeyCtrlQ {
+		} else if event.Key() == tcell.KeyCtrlQ || event.Key() == tcell.KeyRight {
 			// logger.Debug.Printf("Focus: %+v\n", app.GetFocus())
 			// 切换焦点
 			switch app.GetFocus() {
 			case leftListView:
-				app.SetFocus(postContentView)
+				// Opening the currently browsed headline should not show an older article.
+				index := leftListView.current
+				if index < len(BBSView.BBSList) && BBSView.SelectedBBS.Uid != BBSView.BBSList[index].Uid {
+					onSelected(index)
+				} else {
+					app.SetFocus(postContentView)
+				}
 			case postContentView:
 				app.SetFocus(commentsView)
 			case commentsView:
@@ -87,6 +104,7 @@ func NewBBSView(region spider.Region) *BBSViewT {
 			default:
 				app.SetFocus(leftListView)
 			}
+			return nil
 		}
 		return event
 	})
@@ -103,7 +121,6 @@ func NewBBSView(region spider.Region) *BBSViewT {
 	postPanel.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlN {
 			BBSView.NextPageComments()
-			app.SetFocus(BBSView.PostView)
 		} else if event.Key() == tcell.KeyCtrlP {
 			BBSView.PrevPageComments()
 		}
@@ -194,37 +211,45 @@ func (b *BBSViewT) loadPage(page int) {
 }
 
 // 评论下一页
-func (b *BBSViewT) NextPageComments() {
-	if BBSView.SelectedBBS.Uid == "" {
+func (b *BBSViewT) NextPageComments() { b.loadCommentPage(b.CommentPage + 1) }
+
+func (b *BBSViewT) PrevPageComments() {
+	if b.CommentPage <= 1 {
 		return
 	}
-	b.CommentPage += 1
-	BBSView.Comments, _ = BBSView.SelectedBBS.GetComments(b.CommentPage)
-	b.RefreshComments()
-	b.RefreshCommentsTitle()
+	b.loadCommentPage(b.CommentPage - 1)
 }
 
-// 评论上一页
-func (b *BBSViewT) PrevPageComments() {
-	if BBSView.SelectedBBS.Uid == "" {
+func (b *BBSViewT) loadCommentPage(page int) {
+	if b.SelectedBBS.Uid == "" {
 		return
 	}
-	b.CommentPage -= 1
-	if b.CommentPage < 1 {
-		b.CommentPage = 1
+	comments, err := b.SelectedBBS.GetComments(page)
+	if err != nil {
+		b.CommentsView.SetTitle(fmt.Sprintf("评论 · 第%d页 · 加载失败，请重试", b.CommentPage))
+		return
 	}
-	BBSView.Comments, _ = BBSView.SelectedBBS.GetComments(b.CommentPage)
+	if len(comments) == 0 {
+		if b.CommentPage == 0 {
+			b.Comments = nil
+			b.RefreshComments()
+		}
+		b.CommentsView.SetTitle(fmt.Sprintf("评论 · 第%d页 · 没有更多评论", b.CommentPage))
+		return
+	}
+	b.CommentPage = page
+	b.Comments = comments
 	b.RefreshComments()
 	b.RefreshCommentsTitle()
 }
 
 // 刷新帖子列表
 func (b *BBSViewT) RefreshBBSList() {
-	items := make([]string, 0, len(b.BBSList))
+	items := make([]wrappedItem, 0, len(b.BBSList))
 	for _, item := range b.BBSList {
-		items = append(items, fmt.Sprintf("%s\nheat %d", item.Title, item.ReplyCnt+item.LightCnt))
+		items = append(items, wrappedItem{text: item.Title, metadata: fmt.Sprintf("heat %d", item.ReplyCnt+item.LightCnt)})
 	}
-	b.BBSListView.SetItems(items)
+	b.BBSListView.SetEntries(items)
 }
 
 // 刷新帖子内容
@@ -236,9 +261,9 @@ func (b *BBSViewT) RefreshPost() {
 
 // 刷新评论
 func (b *BBSViewT) RefreshComments() {
-	items := make([]string, 0, len(b.Comments))
+	items := make([]wrappedItem, 0, len(b.Comments))
 	for _, item := range b.Comments {
-		items = append(items, fmt.Sprintf("%s\n%s · 亮 %d", item.Content, item.Nickname, item.LightCnt))
+		items = append(items, wrappedItem{text: item.Content, metadata: fmt.Sprintf("%s · 亮 %d", item.Nickname, item.LightCnt)})
 	}
-	b.CommentsView.SetItems(items)
+	b.CommentsView.SetEntries(items)
 }

@@ -107,3 +107,9 @@ ENV/
 vendor/
 tmp/
 *.ipynb
+
+# Local Go build outputs
+/hupu
+/bin/
+/dist/
+*.test

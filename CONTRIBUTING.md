@@ -6,7 +6,7 @@
 
 ## 本地开发
 
-- `origin` 指向 `Alex-Lord/HupuApp`，用于推送个人开发成果。
+- `origin` 指向 `Alex-Lord/HupuApp-dev`，用于推送个人开发成果。
 - `upstream` 指向 `wudizhangzhi/HupuApp`，用于读取和同步上游。
 - 默认分支沿用上游的 `master`；每项改动在独立分支开发，通过 PR 合入自己的私有仓库。
 

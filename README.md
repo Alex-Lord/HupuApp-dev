@@ -14,8 +14,8 @@
 ## 从本副本 构建
 
 ```sh
-git clone https://github.com/Alex-Lord/HupuApp.git
-cd HupuApp
+git clone https://github.com/Alex-Lord/HupuApp-dev.git
+cd HupuApp-dev
 git remote add upstream https://github.com/wudizhangzhi/HupuApp.git
 go build -o bin/hupu ./cmd
 ./bin/hupu news nba

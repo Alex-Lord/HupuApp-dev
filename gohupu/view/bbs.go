@@ -12,7 +12,7 @@ import (
 const help_content = `
 Esc: 返回列表/菜单 Ctrl+C: 返回菜单 Enter: 选择
 Ctrl+N: 下一页 Ctrl+P: 上一页
-Ctrl+Q: 切换焦点
+Ctrl+Q: 切换焦点 PgUp/PgDn: 滚动长内容
 `
 
 var BBSView *BBSViewT
@@ -21,9 +21,9 @@ type BBSViewT struct {
 	Region       spider.Region
 	newsFeed     *spider.TeamNewsFeed
 	Main         *tview.Pages
-	BBSListView  *tview.List
+	BBSListView  *wrappedList
 	PostView     *tview.TextView
-	CommentsView *tview.List
+	CommentsView *wrappedList
 	// 页数
 	BBSPage     int
 	CommentPage int
@@ -40,9 +40,9 @@ func NewBBSView(region spider.Region) *BBSViewT {
 	// 左侧
 	leftPanel := tview.NewFlex().SetDirection(tview.FlexRow)
 
-	leftListView := tview.NewList()
-	leftListView.SetSelectedStyle(tcell.StyleDefault.Bold(true)).SetHighlightFullLine(false).SetBorder(true)
-	leftListView.SetSelectedFunc(onSelected).SetChangedFunc(onChanged)
+	leftListView := newWrappedList()
+	leftListView.SetBorder(true)
+	leftListView.selected = onSelected
 
 	help := tview.NewTextView().SetTextColor(tcell.ColorAqua)
 	fmt.Fprint(help, help_content)
@@ -53,7 +53,7 @@ func NewBBSView(region spider.Region) *BBSViewT {
 		app.Draw()
 	})
 	postContentView.SetBorder(true).SetTitle("Post")
-	commentsView := tview.NewList()
+	commentsView := newWrappedList()
 	commentsView.SetBorder(true).SetTitle("Comments-第1页")
 	postPanel := tview.NewFlex().SetDirection(tview.FlexRow)
 	postPanel.AddItem(postContentView, 0, 1, false)
@@ -126,8 +126,7 @@ func NewBBSView(region spider.Region) *BBSViewT {
 	return BBSView
 }
 
-func onSelected(index int, mainText string, secondaryText string, shortcut rune) {
-	logger.Info.Printf("selected: %d %s %s %c", index, mainText, secondaryText, shortcut)
+func onSelected(index int) {
 	// 选择之后加载帖子内容和评论
 	if index < 0 || index >= len(BBSView.BBSList) {
 		return
@@ -143,10 +142,7 @@ func onSelected(index int, mainText string, secondaryText string, shortcut rune)
 	BBSView.SelectedBBS = bbs
 	BBSView.RefreshPost()
 	BBSView.NextPageComments()
-}
-
-func onChanged(index int, mainText string, secondaryText string, shortcut rune) {
-	logger.Info.Printf("changed: %d %s %s %c", index, mainText, secondaryText, shortcut)
+	app.SetFocus(BBSView.PostView)
 }
 
 func (b *BBSViewT) Display() {
@@ -224,15 +220,11 @@ func (b *BBSViewT) PrevPageComments() {
 
 // 刷新帖子列表
 func (b *BBSViewT) RefreshBBSList() {
-	b.BBSListView.Clear()
-	for i, item := range b.BBSList {
-		b.BBSListView.AddItem(
-			fmt.Sprintf("(%d) %s", i+1, item.Title),
-			fmt.Sprintf("   用户:%s 回复/浏览:%d/%d", item.Nickname, item.ReplyCnt, item.ViewCnt),
-			0,
-			nil,
-		)
+	items := make([]string, 0, len(b.BBSList))
+	for _, item := range b.BBSList {
+		items = append(items, fmt.Sprintf("%s\nheat %d", item.Title, item.ReplyCnt+item.LightCnt))
 	}
+	b.BBSListView.SetItems(items)
 }
 
 // 刷新帖子内容
@@ -244,19 +236,9 @@ func (b *BBSViewT) RefreshPost() {
 
 // 刷新评论
 func (b *BBSViewT) RefreshComments() {
-	b.CommentsView.Clear()
-	for i, item := range b.Comments {
-		b.CommentsView.AddItem(
-			fmt.Sprintf("(%d) %s", i+1, item.Content),
-			fmt.Sprintf(
-				"   用户:%s 亮:%d 时间:%s 位置:%s",
-				item.Nickname,
-				item.LightCnt,
-				item.ReplyTime.Format("2006-01-02 15:04:05"),
-				item.Location,
-			),
-			0,
-			nil,
-		)
+	items := make([]string, 0, len(b.Comments))
+	for _, item := range b.Comments {
+		items = append(items, fmt.Sprintf("%s\n%s · 亮 %d", item.Content, item.Nickname, item.LightCnt))
 	}
+	b.CommentsView.SetItems(items)
 }

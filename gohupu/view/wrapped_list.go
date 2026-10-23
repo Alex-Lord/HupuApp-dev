@@ -7,6 +7,8 @@ import (
 	"github.com/rivo/tview"
 )
 
+var metadataColor = tcell.NewRGBColor(135, 175, 175) // Muted cyan, distinct from terminal white/gray.
+
 // wrappedList keeps selection at the item level while scrolling wrapped lines.
 type wrappedList struct {
 	*tview.Box
@@ -61,7 +63,6 @@ func (l *wrappedList) lines(width int) ([]wrappedLine, []int) {
 				}
 			}
 		}
-		lines = append(lines, wrappedLine{})
 	}
 	starts[len(l.items)] = len(lines)
 	return lines, starts
@@ -100,7 +101,7 @@ func (l *wrappedList) Draw(screen tcell.Screen) {
 		line := lines[n].text
 		color := tcell.ColorDefault
 		if lines[n].metadata {
-			color = tcell.ColorSilver
+			color = metadataColor
 		}
 		if !lines[n].metadata && len(l.items) > 0 && n >= starts[l.current] && n < starts[l.current+1] {
 			line = "[::b]" + line + "[::-]"

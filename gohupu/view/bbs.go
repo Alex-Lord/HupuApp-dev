@@ -255,7 +255,7 @@ func (b *BBSViewT) RefreshBBSList() {
 // 刷新帖子内容
 func (b *BBSViewT) RefreshPost() {
 	b.PostView.Clear()
-	fmt.Fprintf(b.PostView, "https://bbs.hupu.com%s\n%s", b.SelectedBBS.Href, b.PostContent)
+	b.PostView.SetText(tview.Escape(strings.TrimSpace(b.PostContent)))
 	logger.Debug.Printf("更新post content: %s", b.PostContent)
 }
 

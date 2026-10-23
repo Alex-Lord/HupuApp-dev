@@ -90,7 +90,7 @@ func TestWrappedListLongCommentScrollAndEscape(t *testing.T) {
 	handler(tcell.NewEventKey(tcell.KeyEnter, 0, tcell.ModNone), func(tview.Primitive) {})
 }
 
-func TestMetadataUsesSilverWithoutBold(t *testing.T) {
+func TestMetadataUsesDistinctColorWithoutBold(t *testing.T) {
 	screen := tcell.NewSimulationScreen("UTF-8")
 	if err := screen.Init(); err != nil {
 		t.Fatal(err)
@@ -103,7 +103,7 @@ func TestMetadataUsesSilverWithoutBold(t *testing.T) {
 	list.Draw(screen)
 	_, _, style, _ := screen.GetContent(0, 1)
 	fg, _, attrs := style.Decompose()
-	if fg != tcell.ColorSilver || attrs&tcell.AttrBold != 0 {
+	if fg != metadataColor || attrs&tcell.AttrBold != 0 {
 		t.Fatalf("metadata style: %v %v", fg, attrs)
 	}
 }
@@ -166,5 +166,29 @@ func TestCommentArrowsChangePagesAndKeepFocus(t *testing.T) {
 	handler(tcell.NewEventKey(tcell.KeyUp, 0, tcell.ModNone), focus)
 	if b.CommentPage != 1 || len(paths) != 3 {
 		t.Fatal(b.CommentPage, paths)
+	}
+}
+
+func TestEntriesHaveNoBlankSeparators(t *testing.T) {
+	list := newWrappedList()
+	list.SetEntries([]wrappedItem{
+		{text: "first title", metadata: "heat 12"},
+		{text: "second title", metadata: "nickname · 亮 3"},
+	})
+	lines, starts := list.lines(40)
+	if len(lines) != 4 || starts[1] != 2 {
+		t.Fatalf("extra separator rows: %v %v", lines, starts)
+	}
+	if !lines[1].metadata || !lines[3].metadata {
+		t.Fatal("metadata styling lost")
+	}
+}
+
+func TestPostDoesNotIncludeURL(t *testing.T) {
+	b := &BBSViewT{PostView: tview.NewTextView().SetDynamicColors(true),
+		SelectedBBS: spider.BBS{Href: "/123.html"}, PostContent: "\n新闻正文 [red]保留原文\n"}
+	b.RefreshPost()
+	if got := b.PostView.GetText(true); got != "新闻正文 [red]保留原文" {
+		t.Fatal(got)
 	}
 }

@@ -58,7 +58,7 @@ func GetMatchesFromDate(gametype api.GameType, dates ...string) ([]message.Match
 	matches := make([]message.Match, 0)
 	schedule, err := GetScheduleList(gametype)
 	if err != nil {
-		return matches, nil
+		return matches, err
 	}
 	var date string
 	if len(dates) == 0 {
@@ -83,7 +83,7 @@ func GetAnyMatches(gameType api.GameType, count int, reverse bool) ([]message.Ma
 	matches := make([]message.Match, 0)
 	schedule, err := GetScheduleList(gameType)
 	if err != nil {
-		return matches, nil
+		return matches, err
 	}
 	for _, game := range schedule.GameList {
 		t, _ := time.Parse("20060102", game.Day)

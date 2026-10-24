@@ -10,6 +10,7 @@ import (
 	"github.com/wudizhangzhi/HupuApp/gohupu/menu"
 	"github.com/wudizhangzhi/HupuApp/gohupu/spider"
 	"github.com/wudizhangzhi/HupuApp/gohupu/view"
+	"github.com/wudizhangzhi/HupuApp/gohupu/watch"
 )
 
 type LiveCmd struct {
@@ -57,11 +58,25 @@ func (r *NewsCmd) Run() error {
 	return nil
 }
 
+type WatchCmd struct {
+	GameType api.GameType `arg:"" name:"gameType" help:"比赛类型(nba/cba)."`
+	Team     string       `arg:"" name:"team" help:"球队名称(如 开拓者)."`
+	Player   string       `arg:"" name:"player" help:"球员名称(如 杨瀚森)."`
+	Notify   string       `name:"notify" help:"通知命令(如 dx-push), 消息内容将作为参数传入."`
+}
+
+// 监控球员上场
+func (r *WatchCmd) Run() error {
+	watcher := watch.New(r.GameType, r.Team, r.Player, r.Notify)
+	return watcher.Start()
+}
+
 var cli struct {
 	Debug bool `help:"Enable debug mode."`
 
-	Live LiveCmd `cmd:"" help:"比赛直播."`
-	News NewsCmd `cmd:"" help:"新闻、帖子."`
+	Live  LiveCmd  `cmd:"" help:"比赛直播."`
+	News  NewsCmd  `cmd:"" help:"新闻、帖子."`
+	Watch WatchCmd `cmd:"" help:"监控球员上场."`
 }
 
 func main() {

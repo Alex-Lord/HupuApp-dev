@@ -42,14 +42,18 @@ func New(match message.Match) *Client {
 	}
 }
 
-func (c *Client) init() {
+func (c *Client) init() error {
 	liveActivityKey, err := api_utils.GetLiveActivityKey(c.Match.MatchId)
 	if err != nil {
-		logger.Error.Fatal(err)
+		return err
+	}
+	if liveActivityKey == "" {
+		return fmt.Errorf("直播接口未返回房间标识")
 	}
 	c.liveActivityKey = liveActivityKey
 
-	logger.Info.Printf("liveActivityKey: %s\n", liveActivityKey)
+	logger.Info.Printf("直播房间初始化成功\n")
+	return nil
 }
 
 // 格式化直播消息
@@ -65,16 +69,17 @@ func (c *Client) PrintLiveMsg(msg message.LiveMsg) {
 }
 
 // 比赛状态更新
-func (c *Client) OnMatchUpdate() {
+func (c *Client) OnMatchUpdate() error {
 	match, err := api_utils.GetSingleMatch(c.Match.MatchId)
 	if err != nil {
-		logger.Error.Fatal(err)
+		return err
 	}
 	if match.MatchStatus == "COMPLETED" {
 		c.End()
 	} else {
 		c.Match = match
 	}
+	return nil
 }
 
 func (c *Client) isNewComment(msg message.LiveMsg) bool {
@@ -94,14 +99,14 @@ func (c *Client) isNewComment(msg message.LiveMsg) bool {
 	return false
 }
 
-func (c *Client) OnLiveMessage() {
+func (c *Client) OnLiveMessage() error {
 	matchTextMsgs, err := api_utils.GetLiveMsgList(c.Match.MatchId, c.liveActivityKey, "")
 	if err != nil {
-		logger.Error.Fatal(err)
+		return err
 	}
 	// 确认比赛状态
 	if len(matchTextMsgs) == 0 {
-		c.OnMatchUpdate()
+		return c.OnMatchUpdate()
 	} else {
 		for _, msg := range matchTextMsgs {
 			if c.isNewComment(msg) {
@@ -111,6 +116,7 @@ func (c *Client) OnLiveMessage() {
 			}
 		}
 	}
+	return nil
 }
 
 func (c *Client) End() {
@@ -119,7 +125,7 @@ func (c *Client) End() {
 	c.InterruptCh <- syscall.SIGQUIT
 }
 
-func (c *Client) Start() {
+func (c *Client) Start() error {
 	fmt.Println("----- 正在连接直播间 -----")
 	// 初始化
 	c.InterruptCh = make(chan os.Signal, 1)
@@ -127,7 +133,12 @@ func (c *Client) Start() {
 	c.ThQueryMatch = time.NewTicker(HupuApp.LIVE_HEART_BEAT_PERIOD * 2 * time.Second)
 
 	signal.Notify(c.InterruptCh, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	c.init()
+	defer c.Th.Stop()
+	defer c.ThQueryMatch.Stop()
+	defer signal.Stop(c.InterruptCh)
+	if err := c.init(); err != nil {
+		return err
+	}
 
 OutLoop:
 	for {
@@ -136,11 +147,15 @@ OutLoop:
 			logger.Info.Println("收到中断信号，退出直播间")
 			break OutLoop
 		case <-c.Th.C:
-			c.OnLiveMessage()
+			if err := c.OnLiveMessage(); err != nil {
+				return err
+			}
 		case <-c.ThQueryMatch.C:
-			c.OnMatchUpdate()
+			if err := c.OnMatchUpdate(); err != nil {
+				return err
+			}
 		}
 	}
 
-	close(c.InterruptCh)
+	return nil
 }

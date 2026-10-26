@@ -8,12 +8,12 @@
 
 - `origin` 指向 `Alex-Lord/HupuApp-dev`，用于推送个人开发成果。
 - `upstream` 指向 `wudizhangzhi/HupuApp`，用于读取和同步上游。
-- 默认分支沿用上游的 `master`；每项改动在独立分支开发，通过 PR 合入自己的私有仓库。
+- 默认分支沿用上游的 `master`。本仓库仅由所有者个人开发：每项改动验证通过后，默认合并并推送到自己的私有仓库 `master`，无需再次询问；不要仅留在开发分支或草稿 PR。可以用临时分支和 PR 整理改动，但应在完成时合入主分支。
 
 ```sh
 git switch master
 git pull --ff-only origin master
-git switch -c feature/describe-the-change
+git switch -c codex/describe-the-change
 go build -o bin/hupu ./cmd
 ./bin/hupu news nba
 ```

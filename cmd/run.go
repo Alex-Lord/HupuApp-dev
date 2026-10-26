@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"github.com/wudizhangzhi/HupuApp/gohupu/auth"
+	"os"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -19,9 +22,18 @@ type LiveCmd struct {
 
 // 直播
 func (r *LiveCmd) Run() error {
-	matches, _ := api_utils.GetMatchesFromDate(r.GameType)
+	matches, err := api_utils.GetMatchesFromDate(r.GameType)
+	if err != nil {
+		return err
+	}
 	if len(matches) == 0 {
-		matches, _ = api_utils.GetAnyMatches(api.NBA, 10, false)
+		matches, err = api_utils.GetAnyMatches(r.GameType, 10, false)
+		if err != nil {
+			return err
+		}
+	}
+	if len(matches) == 0 {
+		return fmt.Errorf("暂未获取到比赛，可能暂无赛程或上游直播接口已变化")
 	}
 	interfaceItems := make([]interface{}, 0)
 	for _, item := range matches {
@@ -38,12 +50,14 @@ func (r *LiveCmd) Run() error {
 	if err != nil {
 		return err
 	}
+	if idx < 0 || idx >= len(matches) {
+		return nil
+	}
 	match := matches[idx]
 	client := live.New(match)
 	// // 退出过快可能导致print打印不显示
 	time.Sleep(1 * time.Second)
-	client.Start()
-	return nil
+	return client.Start()
 }
 
 type NewsCmd struct {
@@ -51,6 +65,13 @@ type NewsCmd struct {
 }
 
 func (r *NewsCmd) Run() error {
+	if !cli.Guest {
+		cookie, err := auth.Load()
+		if err != nil {
+			return err
+		}
+		spider.SetSession(cookie)
+	}
 	spider.New()
 	view.NewApp()
 	bbsView := view.NewBBSView(r.Region)
@@ -72,7 +93,12 @@ func (r *WatchCmd) Run() error {
 }
 
 var cli struct {
-	Debug bool `help:"Enable debug mode."`
+	Debug     bool          `help:"Enable debug mode."`
+	Guest     bool          `help:"跳过登录，使用公开内容。"`
+	LoginWait time.Duration `name:"login-wait" default:"5m" help:"等待网页登录的时间。"`
+	Home      HomeCmd       `cmd:"" default:"1" help:"自动登录并进入功能菜单。"`
+	Login     LoginCmd      `cmd:"" help:"恢复登录并进入功能菜单。"`
+	Auth      AuthCmd       `cmd:"" help:"检查本地登录状态。"`
 
 	Live  LiveCmd  `cmd:"" help:"比赛直播."`
 	News  NewsCmd  `cmd:"" help:"新闻、帖子."`
@@ -80,6 +106,9 @@ var cli struct {
 }
 
 func main() {
+	if os.Getenv("TERM") == "" || os.Getenv("TERM") == "dumb" {
+		os.Setenv("TERM", "xterm-256color")
+	}
 	ctx := kong.Parse(&cli,
 		kong.Name("Hupu"),
 		kong.Description("A command line tool for Hupu."),

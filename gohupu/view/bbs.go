@@ -55,6 +55,9 @@ func NewBBSView(region spider.Region) *BBSViewT {
 	postContentView.SetBorder(true).SetTitle("Post")
 	commentsView := newWrappedList()
 	commentsView.SetBorder(true).SetTitle("Comments-第1页")
+	for _, box := range []*tview.Box{leftListView.Box, postContentView.Box, commentsView.Box} {
+		markFocusedBorder(box)
+	}
 	commentsView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
 		case tcell.KeyDown:
@@ -266,4 +269,11 @@ func (b *BBSViewT) RefreshComments() {
 		items = append(items, wrappedItem{text: item.Content, metadata: fmt.Sprintf("%s · 亮 %d", item.Nickname, item.LightCnt)})
 	}
 	b.CommentsView.SetEntries(items)
+}
+
+// Focus callbacks cover keyboard navigation, mouse clicks, and Esc equally.
+func markFocusedBorder(box *tview.Box) {
+	normal := box.GetBorderColor()
+	box.SetFocusFunc(func() { box.SetBorderColor(tcell.ColorRed) })
+	box.SetBlurFunc(func() { box.SetBorderColor(normal) })
 }

@@ -192,3 +192,42 @@ func TestPostDoesNotIncludeURL(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestPanelBordersFollowFocus(t *testing.T) {
+	oldApp := app
+	app = tview.NewApplication()
+	defer func() { app = oldApp }()
+	b := NewBBSView("nba")
+	panels := []tview.Primitive{b.BBSListView, b.PostView, b.CommentsView}
+	boxes := []*tview.Box{b.BBSListView.Box, b.PostView.Box, b.CommentsView.Box}
+	normal := boxes[0].GetBorderColor()
+	screen := tcell.NewSimulationScreen("UTF-8")
+	if err := screen.Init(); err != nil {
+		t.Fatal(err)
+	}
+	defer screen.Fini()
+	screen.SetSize(20, 6)
+	for i, panel := range panels {
+		app.SetFocus(panel)
+		for j, box := range boxes {
+			want := normal
+			if i == j {
+				want = tcell.ColorRed
+			}
+			if box.GetBorderColor() != want {
+				t.Fatalf("focus %d panel %d", i, j)
+			}
+		}
+		panel.SetRect(0, 0, 20, 6)
+		panel.Draw(screen)
+		_, _, style, _ := screen.GetContent(0, 0)
+		fg, _, _ := style.Decompose()
+		if fg != tcell.ColorRed {
+			t.Fatal("focused border is not rendered red")
+		}
+	}
+	app.SetFocus(b.BBSListView)
+	if boxes[2].GetBorderColor() != normal || boxes[0].GetBorderColor() != tcell.ColorRed {
+		t.Fatal("return to list did not restore borders")
+	}
+}

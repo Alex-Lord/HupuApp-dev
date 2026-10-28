@@ -167,6 +167,24 @@ func TestCommentArrowsChangePagesAndKeepFocus(t *testing.T) {
 	if b.CommentPage != 1 || len(paths) != 3 {
 		t.Fatal(b.CommentPage, paths)
 	}
+	b.CommentsView.offset = 4
+	b.NextPageComments()
+	b.PrevPageComments()
+	if len(paths) != 3 || b.CommentsView.offset != 4 {
+		t.Fatal("cached navigation reloaded or lost position", paths, b.CommentsView.offset)
+	}
+	b.NextPageComments()
+	b.NextPageComments()
+	if len(paths) != 3 {
+		t.Fatal("re-requested known end page")
+	}
+	b.SelectedBBS = spider.BBS{Uid: "456"}
+	b.CommentPage = 0
+	b.NextPageComments()
+	if len(paths) != 4 || paths[3] != "/456-1.html" {
+		t.Fatal("used another article's cache")
+	}
+
 }
 
 func TestEntriesHaveNoBlankSeparators(t *testing.T) {

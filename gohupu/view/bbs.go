@@ -28,11 +28,14 @@ type BBSViewT struct {
 	BBSPage     int
 	CommentPage int
 	// 显示
-	HelpContent string
-	BBSList     []spider.BBS
-	Comments    []spider.Comment
-	PostContent string
-	SelectedBBS spider.BBS
+	HelpContent     string
+	BBSList         []spider.BBS
+	Comments        []spider.Comment
+	PostContent     string
+	SelectedBBS     spider.BBS
+	commentCacheUID string
+	commentCache    map[int][]spider.Comment
+	commentOffsets  map[int]int
 }
 
 func NewBBSView(region spider.Region) *BBSViewT {
@@ -49,9 +52,7 @@ func NewBBSView(region spider.Region) *BBSViewT {
 	leftPanel.AddItem(leftListView, 0, 5, true).AddItem(help, 0, 1, false)
 
 	// 右侧
-	postContentView := tview.NewTextView().SetDynamicColors(true).SetChangedFunc(func() {
-		app.Draw()
-	})
+	postContentView := tview.NewTextView().SetDynamicColors(true)
 	postContentView.SetBorder(true).SetTitle("Post")
 	commentsView := newWrappedList()
 	commentsView.SetBorder(true).SetTitle("Comments-第1页")
@@ -158,7 +159,8 @@ func onSelected(index int) {
 		BBSView.PostView.SetText("读取失败：" + err.Error())
 		return
 	}
-	BBSView.CommentPage = 0 // 重置评论页数
+	BBSView.CommentPage = 0      // 重置评论页数
+	BBSView.commentCacheUID = "" // Explicitly reopening an article refreshes its comments.
 	BBSView.SelectedBBS = bbs
 	BBSView.RefreshPost()
 	BBSView.NextPageComments()
@@ -227,7 +229,19 @@ func (b *BBSViewT) loadCommentPage(page int) {
 	if b.SelectedBBS.Uid == "" {
 		return
 	}
-	comments, err := b.SelectedBBS.GetComments(page)
+	if b.commentCacheUID != b.SelectedBBS.Uid {
+		b.commentCacheUID = b.SelectedBBS.Uid
+		b.commentCache = make(map[int][]spider.Comment)
+		b.commentOffsets = make(map[int]int)
+	}
+	comments, cached := b.commentCache[page]
+	var err error
+	if !cached {
+		comments, err = b.SelectedBBS.GetComments(page)
+		if err == nil {
+			b.commentCache[page] = comments
+		}
+	}
 	if err != nil {
 		b.CommentsView.SetTitle(fmt.Sprintf("评论 · 第%d页 · 加载失败，请重试", b.CommentPage))
 		return
@@ -240,9 +254,12 @@ func (b *BBSViewT) loadCommentPage(page int) {
 		b.CommentsView.SetTitle(fmt.Sprintf("评论 · 第%d页 · 没有更多评论", b.CommentPage))
 		return
 	}
+	b.commentOffsets[b.CommentPage] = b.CommentsView.offset
 	b.CommentPage = page
 	b.Comments = comments
 	b.RefreshComments()
+	b.CommentsView.offset = b.commentOffsets[page]
+	b.CommentsView.reveal = false
 	b.RefreshCommentsTitle()
 }
 
@@ -257,7 +274,6 @@ func (b *BBSViewT) RefreshBBSList() {
 
 // 刷新帖子内容
 func (b *BBSViewT) RefreshPost() {
-	b.PostView.Clear()
 	b.PostView.SetText(tview.Escape(strings.TrimSpace(b.PostContent)))
 	logger.Debug.Printf("更新post content: %s", b.PostContent)
 }

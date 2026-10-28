@@ -17,6 +17,9 @@ type wrappedList struct {
 	width           int
 	reveal          bool
 	selected        func(int)
+	layoutWidth     int
+	layoutLines     []wrappedLine
+	layoutStarts    []int
 }
 
 func newWrappedList() *wrappedList {
@@ -38,13 +41,18 @@ func (l *wrappedList) SetItems(items []string) {
 }
 
 func (l *wrappedList) SetEntries(items []wrappedItem) {
-	l.items = items
+	l.items = append([]wrappedItem(nil), items...)
+	l.layoutStarts = nil
+	l.layoutLines = nil
 	l.current = 0
 	l.offset = 0
 	l.reveal = true
 }
 
 func (l *wrappedList) lines(width int) ([]wrappedLine, []int) {
+	if l.layoutStarts != nil && l.layoutWidth == width {
+		return l.layoutLines, l.layoutStarts
+	}
 	var lines []wrappedLine
 	starts := make([]int, len(l.items)+1)
 	for i, item := range l.items {
@@ -65,6 +73,9 @@ func (l *wrappedList) lines(width int) ([]wrappedLine, []int) {
 		}
 	}
 	starts[len(l.items)] = len(lines)
+	l.layoutWidth = width
+	l.layoutLines = lines
+	l.layoutStarts = starts
 	return lines, starts
 }
 
@@ -81,8 +92,10 @@ func (l *wrappedList) Draw(screen tcell.Screen) {
 	}
 	if len(l.items) > 0 && l.reveal {
 		start, end := starts[l.current], starts[l.current+1]
-		if start < l.offset || start >= l.offset+h || end > l.offset+h {
+		if start < l.offset || end-start > h {
 			l.offset = start
+		} else if end > l.offset+h {
+			l.offset = end - h
 		}
 	}
 	l.reveal = false
@@ -136,11 +149,9 @@ func (l *wrappedList) InputHandler() func(*tcell.EventKey, func(tview.Primitive)
 				l.reveal = true
 			}
 		case tcell.KeyPgDn:
-			l.offset += max(1, h-1)
-			l.reveal = false
+			l.scroll(max(1, h-1))
 		case tcell.KeyPgUp:
-			l.offset -= max(1, h-1)
-			l.reveal = false
+			l.scroll(-max(1, h-1))
 		case tcell.KeyEnter:
 			if len(l.items) > 0 && l.selected != nil {
 				l.selected(l.current)
@@ -157,11 +168,9 @@ func (l *wrappedList) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, 
 		}
 		switch action {
 		case tview.MouseScrollUp:
-			l.offset -= 3
-			l.reveal = false
+			l.scroll(-1)
 		case tview.MouseScrollDown:
-			l.offset += 3
-			l.reveal = false
+			l.scroll(1)
 		case tview.MouseLeftClick, tview.MouseLeftDoubleClick:
 			setFocus(l)
 			_, y, w, _ := l.GetInnerRect()
@@ -184,4 +193,16 @@ func (l *wrappedList) MouseHandler() func(tview.MouseAction, *tcell.EventMouse, 
 		}
 		return true, nil
 	})
+}
+
+// Clamp each input event, so queued wheel events at a boundary do not create
+// overscroll debt that delays the first event in the opposite direction.
+func (l *wrappedList) scroll(delta int) {
+	_, _, w, h := l.GetInnerRect()
+	if w <= 0 || h <= 0 {
+		return
+	}
+	lines, _ := l.lines(w)
+	l.offset = max(0, min(l.offset+delta, max(0, len(lines)-h)))
+	l.reveal = false
 }

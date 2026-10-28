@@ -232,9 +232,12 @@ func (bbs *BBS) GetComments(page int) ([]Comment, error) {
 	if err != nil {
 		return comments, err
 	}
+	if resp.StatusCode() != 200 {
+		return nil, fmt.Errorf("评论 HTTP %d", resp.StatusCode())
+	}
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(resp.Body()))
 	if err != nil {
-		return comments, nil
+		return comments, err
 	}
 	doc.Find("div.post-reply-list-wrapper").Each(func(i int, s *goquery.Selection) {
 		content := s.Find("div.thread-content-detail > p").Text()
